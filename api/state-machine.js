@@ -14,92 +14,75 @@ const edison = require('./states/edison.json');
 
 const states = [
 	{name: 'day', lights: day},
-	{name: 'danger', lights: danger},
 	{name: 'shadows', lights: shadows},
-	{name: 'danger', lights: danger},
 	{name: 'dusk', lights: dusk},
-	{name: 'danger', lights: danger},
 	{name: 'sunset', lights: sunset},
-	{name: 'danger', lights: danger},
 	{name: 'nightfall', lights: nightfall},
-	{name: 'danger', lights: danger},
 	{name: 'midnight', lights: midnight},
 ];
 
-const STATE_TIME = 0.1 * 60000;
 const DANGER_TIME = 3000;
 
 let currentState = 0;
 let state = states[currentState];
-let time = 0;
-let timer;
 
-const setLights = async () => {
+const initialize = async () => {
+	currentState = 0;
+	state = states[currentState];
+	await setLights(state.lights);
+	return state;
+};
+
+const setLights = async lights => {
 	const authenticatedApi = await api
 		.createLocal(ipAddress)
 		.connect(credentials.USERNAME);
 
-	await Promise.all(Object.keys(state.lights).map(id =>
-		authenticatedApi.lights.setLightState(id, state.lights[id])));
+	await Promise.all(Object.keys(lights).map(id =>
+		authenticatedApi.lights.setLightState(id, lights[id])));
 };
 
 const nextState = async () => {
 	if (currentState === states.length - 1) {
-		end();
 		return;
 	}
 
-	time = 0;
 	currentState += 1;
 	state = states[currentState];
-	await setLights(state);
+	await setLights(state.lights);
+	return state;
 };
 
-const tick = async () => {
-	const isDanger = state.name === 'danger';
-
-	if (isDanger && time >= DANGER_TIME) {
-		await nextState();
+const prevState = async () => {
+	if (currentState === 0) {
 		return;
 	}
 
-	if (time >= STATE_TIME) {
-		await nextState();
-	}
+	currentState -= 1;
+	state = states[currentState];
+	await setLights(state.lights);
+	return state;
 };
 
-const initialize = async () => {
-	await setLights(state);
-	start();
-};
-
-const start = () => {
-	timer = setInterval(() => {
-		time += 1000;
-		tick();
-	}, 1000);
-};
-
-const stop = () => {
-	clearInterval(timer);
+const flashDangerState = async () => {
+	await setLights(danger);
+	setTimeout(() => {
+		setLights(state.lights);
+	}, DANGER_TIME);
 };
 
 const end = async () => {
-	console.log('end');
-	stop();
-	console.log('end stopped');
-	time = 0;
 	currentState = 0;
 	state = states[currentState];
-	console.log('end reset', {time, currentState});
 	await setLights(edison);
-	console.log('end lights', {edison});
+	return {name: 'end', lights: edison};
 };
 
 module.exports = {
+	states,
 	initialize,
-	start,
 	nextState,
-	stop,
+	prevState,
+	flashDangerState,
 	end,
 };

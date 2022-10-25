@@ -4,7 +4,7 @@ const logger = require('morgan');
 const cors = require('cors');
 
 const {discoverAndAuthenticate} = require('./discover');
-const {initialize, start, stop, end, nextState} = require('./state-machine');
+const {initialize, end, nextState, prevState, flashDangerState, states} = require('./state-machine');
 
 const app = express();
 
@@ -13,37 +13,52 @@ app.use(express.json());
 app.use(express.urlencoded({extended: false}));
 app.use(cors());
 
+app.get('/states', (_req, res, _next) => {
+	res
+		.setHeader('Content-Type', 'application/json')
+		.status(200)
+		.send(states);
+});
+
 app.post('/initialize', async (_req, res, next) => {
 	try {
-		await discoverAndAuthenticate();
-		await initialize();
-		res.sendStatus(200);
+		const state = await initialize();
+		res
+			.setHeader('Content-Type', 'application/json')
+			.status(200)
+			.send(state);
 	} catch (err) {
 		next(createError(500, err));
 	}
 });
 
-app.post('/start', (_req, res, next) => {
+app.post('/next', async (_req, res, next) => {
 	try {
-		start();
-		res.sendStatus(200);
+		const state = await nextState();
+		res
+			.setHeader('Content-Type', 'application/json')
+			.status(200)
+			.send(state);
 	} catch (err) {
 		next(createError(500, err));
 	}
 });
 
-app.post('/next', (_req, res, next) => {
+app.post('/prev', async (_req, res, next) => {
 	try {
-		nextState();
-		res.sendStatus(200);
+		const state = await prevState();
+		res
+			.setHeader('Content-Type', 'application/json')
+			.status(200)
+			.send(state);
 	} catch (err) {
 		next(createError(500, err));
 	}
 });
 
-app.post('/stop', (_req, res, next) => {
+app.post('/danger', async (_req, res, next) => {
 	try {
-		stop();
+		await flashDangerState();
 		res.sendStatus(200);
 	} catch (err) {
 		next(createError(500, err));
@@ -63,5 +78,9 @@ app.post('/end', async (_req, res, next) => {
 app.use((_req, _res, next) => {
 	next(createError(404));
 });
+
+(async () => {
+	await discoverAndAuthenticate();
+})();
 
 module.exports = app;
